@@ -46,6 +46,32 @@ const initialMedState: Omit<Medication, 'id' | 'doseStatus'> = {
     refillHistory: [],
 };
 
+// Helper functions for robust duplicate checking
+const normalizeString = (str: string | undefined): string => (str || '').trim().toLowerCase();
+
+const dosageMatches = (dosage1: string, dosage2: string): boolean => {
+    const norm1 = normalizeString(dosage1);
+    const norm2 = normalizeString(dosage2);
+    if (norm1 === norm2) return true;
+
+    // Regex to extract core dosage strength and unit (e.g., "10mg", "1%", "25 mcg")
+    const coreDosageRegex = /^[\d.]+\s?(mg|mcg|g|%|iu|meq|ml)/;
+    const core1 = norm1.match(coreDosageRegex)?.[0];
+    const core2 = norm2.match(coreDosageRegex)?.[0];
+    
+    // If a core dosage with a unit was successfully extracted from both, compare them
+    if (core1 && core2) {
+        return core1 === core2;
+    }
+
+    // Fallback if regex fails on one or both (e.g., for non-standard dosages)
+    return false;
+};
+
+const nameMatches = (name1: string, name2: string): boolean => {
+    return normalizeString(name1) === normalizeString(name2);
+};
+
 
 const resizeImage = (base64Str: string, maxWidth = 128, maxHeight = 128): Promise<string> => {
     return new Promise((resolve) => {
@@ -96,6 +122,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
   const dosageInputRef = useRef<HTMLInputElement>(null);
   const isInitialMount = useRef(true);
   const [isCheckingInteraction, setIsCheckingInteraction] = useState(false);
+  const [checkingInteractionId, setCheckingInteractionId] = useState<string | null>(null);
   const [imprintSearch, setImprintSearch] = useState('');
   const [isCameraAvailable, setIsCameraAvailable] = useState(false);
   
@@ -192,12 +219,24 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
     });
   };
   
-  const updateStateWithDetails = (details: Partial<Medication>, image?: string) => {
-     setMed(prev => ({
+  const updateStateWithDetails = async (details: Partial<Medication>, image?: string) => {
+    const newFrequency = details.frequency || '';
+    let newTimes: string[] = [];
+
+    if (newFrequency) {
+        try {
+            newTimes = await getTimesFromFrequency(newFrequency);
+        } catch (e) {
+            console.error("Failed to fetch reminder times:", e);
+        }
+    }
+     
+    setMed(prev => ({
         ...prev,
         ...details,
         image: image || details.image || prev.image,
-     }));
+        times: newTimes,
+    }));
   }
 
   const handleImageIdentification = async (base64Image: string) => {
@@ -208,7 +247,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
       const resizedImage = await resizeImage(base64Image); 
       
       if(identifiedData.name) {
-        updateStateWithDetails(identifiedData, resizedImage);
+        await updateStateWithDetails(identifiedData, resizedImage);
         if (!identifiedData.dosage) {
           setTimeout(() => dosageInputRef.current?.focus(), 100);
         }
@@ -230,8 +269,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         return;
     }
     try {
-        // Fix: Explicitly cast result to Blob to address type inference issues.
-        const imageBlob = (await window.aistudio.camera.getPicture()) as Blob;
+        const imageBlob: Blob = await window.aistudio.camera.getPicture();
         const base64Image = await blobToBase64(imageBlob);
         await handleImageIdentification(base64Image);
     } catch (error) {
@@ -289,7 +327,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         } catch (err) {
             console.error(`Failed to process image ${file.name}:`, err);
             const resizedImage = await resizeImage(await blobToBase64(file));
-            results.push({ id: `${file.name}-${Date.now()}`, fileName: file.name, base64Image: '', resizedImage, identifiedData: null, status: 'failed' });
+            results.push({ id: `${file.name}-${Date.now()}`, fileName: file.name, base64Image: '', resizedImage, identifiedData: null, status: 'failed', error: err instanceof Error ? err.message : String(err) });
         }
     }
     setBatchResults(results);
@@ -305,7 +343,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
       const identifiedData = await identifyMedicationByImprint(imprintSearch);
       if (identifiedData.name) {
         const image = await findPillImage(identifiedData.name, identifiedData.dosage || '');
-        updateStateWithDetails(identifiedData, image ? `data:image/png;base64,${image}` : undefined);
+        await updateStateWithDetails(identifiedData, image ? `data:image/png;base64,${image}` : undefined);
       } else {
         setError("Could not identify the medication from this imprint. Please check the text and try again.");
       }
@@ -330,7 +368,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
             identifyMedicationByName(name, dosage),
             findPillImage(name, dosage)
         ]);
-        updateStateWithDetails(details, image ? `data:image/png;base64,${image}`: undefined)
+        await updateStateWithDetails(details, image ? `data:image/png;base64,${image}`: undefined)
         if (!med.dosage && !details.dosage){
              setTimeout(() => dosageInputRef.current?.focus(), 100);
         }
@@ -374,7 +412,8 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         setVoiceTargetField(null);
         recognitionRef.current = null;
     };
-    recognition.onerror = (event: any) => {
+    // FIX: Use specific event types instead of any to prevent type errors.
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       if (event.error !== 'aborted') {
         let errorMessage = `Voice recognition error: ${event.error}`;
         if (event.error === 'no-speech') errorMessage = "No speech was detected. Please try again.";
@@ -383,7 +422,8 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         setError(errorMessage);
       }
     };
-    recognition.onresult = (event: any) => {
+    // FIX: Use specific event types instead of any to prevent type errors.
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[0][0].transcript.replace(/\.$/, '');
         (async () => {
           if (field === 'frequency') {
@@ -406,12 +446,41 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
             setMed(prev => ({ ...prev, [field]: transcript }));
             const currentName = field === 'name' ? transcript : med.name;
             const currentDosage = field === 'dosage' ? transcript : med.dosage;
-            if (currentName && currentDosage && field === 'dosage') handlePillDetailsSearch(currentName, currentDosage);
+            if (currentName && currentDosage && field === 'dosage') await handlePillDetailsSearch(currentName, currentDosage);
           }
         })();
       };
     recognition.start();
   }, [isListening, med.name, med.dosage, handlePillDetailsSearch]);
+
+   const isMedicationDuplicate = useCallback((
+    medToCheck: { name?: string; dosage?: string },
+    medIdToExclude?: string,
+    batchIdToExclude?: string
+  ): boolean => {
+    if (!medToCheck.name || !medToCheck.dosage) return false;
+
+    const inList = medications.some(
+      (existing) =>
+        existing.id !== medIdToExclude &&
+        nameMatches(existing.name, medToCheck.name!) &&
+        dosageMatches(existing.dosage, medToCheck.dosage!)
+    );
+
+    if (inList) return true;
+
+    const inBatch = batchResults.some(
+      (r) =>
+        r.id !== batchIdToExclude &&
+        r.status === 'added' &&
+        r.identifiedData?.name &&
+        r.identifiedData?.dosage &&
+        nameMatches(r.identifiedData.name, medToCheck.name!) &&
+        dosageMatches(r.identifiedData.dosage, medToCheck.dosage!)
+    );
+    
+    return inBatch;
+  }, [medications, batchResults]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -420,25 +489,32 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         return;
     }
 
+    if (med.times.length === 0 && med.frequency && !med.frequency.toLowerCase().includes('as needed')) {
+        setError('Please add at least one reminder time for this medication schedule.');
+        return;
+    }
+
     const finalMedData = { ...med };
 
-    // When editing a med from the main list, not the batch review
+    if (isMedicationDuplicate(finalMedData, existingMedication?.id, editingBatchItemId || undefined)) {
+        if (editingBatchItemId) {
+            setBatchResults(prev => prev.map(r => 
+                r.id === editingBatchItemId 
+                ? { ...r, status: 'duplicate', error: 'Already in your list.' } 
+                : r
+            ));
+            handleReturnToReview();
+        } else {
+            setError('This medication with the same dosage already exists in your list.');
+        }
+        return;
+    }
+
+
     if (existingMedication && !editingBatchItemId) {
       onUpdate({ ...existingMedication, ...finalMedData });
       onClose();
       return;
-    }
-    
-    // Check for duplicates, ignoring the one being edited (if any)
-    const isDuplicate = medications.some(
-        existing => existing.id !== existingMedication?.id &&
-                    existing.name.trim().toLowerCase() === finalMedData.name.trim().toLowerCase() &&
-                    existing.dosage.trim().toLowerCase() === finalMedData.dosage.trim().toLowerCase()
-    );
-
-    if (isDuplicate) {
-        setError('This medication with the same dosage already exists in your list.');
-        return;
     }
 
     setIsCheckingInteraction(true);
@@ -489,16 +565,11 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
       
       const { identifiedData, resizedImage } = result;
 
-      const isDuplicate = medications.some(
-          existing => existing.name.trim().toLowerCase() === identifiedData.name?.trim().toLowerCase() &&
-                      existing.dosage.trim().toLowerCase() === identifiedData.dosage?.trim().toLowerCase()
-      );
-  
-      if (isDuplicate) {
-          setBatchResults(prev => prev.map(r => r.id === resultId ? { ...r, status: 'duplicate', error: 'Already in your list.' } : r));
-          return;
+      if (isMedicationDuplicate({ name: identifiedData.name, dosage: identifiedData.dosage }, undefined, resultId)) {
+        setBatchResults(prev => prev.map(r => r.id === resultId ? { ...r, status: 'duplicate', error: 'Already in your list.' } : r));
+        return;
       }
-
+      
       const times = await getTimesFromFrequency(identifiedData.frequency || '');
       const newMed: Omit<Medication, 'id'> = {
         name: identifiedData.name!,
@@ -509,11 +580,38 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         ...identifiedData,
         image: resizedImage,
       };
-      onAdd(newMed);
-      setBatchResults(prev => prev.map(r => r.id === resultId ? { ...r, status: 'added' } : r));
+
+      setCheckingInteractionId(resultId);
+      const addAction = () => {
+        onAdd(newMed);
+        setBatchResults(prev => prev.map(r => r.id === resultId ? { ...r, status: 'added' } : r));
+      };
+
+      try {
+        const medNames = [...medications.map(m => `${m.name} ${m.dosage}`), `${newMed.name} ${newMed.dosage}`];
+         if (medNames.length > 1) {
+            const interactionResult = await checkInteractions(medNames);
+            if (interactionResult.hasInteractions) {
+                requestConfirmation({
+                    title: 'Interaction Warning',
+                    message: `${interactionResult.summary}\n\nThis medication may interact with your existing prescriptions. Please consult your doctor.`,
+                    confirmText: 'Add Anyway',
+                    actionStyle: 'danger',
+                    onConfirm: addAction
+                });
+                return;
+            }
+        }
+        addAction();
+      } catch (e) {
+        console.error("Interaction check failed during auto-add:", e);
+        addAction(); // Add anyway if check fails
+      } finally {
+        setCheckingInteractionId(null);
+      }
   };
   
-  const handleEditAndAdd = (resultId: string) => {
+  const handleEditAndAdd = async (resultId: string) => {
     const result = batchResults.find(r => r.id === resultId);
     if (!result) return;
 
@@ -523,7 +621,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         image: result.resizedImage,
       });
     } else {
-      updateStateWithDetails(result.identifiedData, result.resizedImage);
+      await updateStateWithDetails(result.identifiedData, result.resizedImage);
     }
 
     setEditingBatchItemId(resultId);
@@ -717,7 +815,9 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
                         {result.status === 'identified' && (
                             <>
                             <button type="button" onClick={() => handleEditAndAdd(result.id)} className="px-3 py-1.5 text-sm font-semibold bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors">Edit & Add</button>
-                            <button type="button" onClick={() => handleAddAutomatically(result.id)} className="px-3 py-1.5 text-sm font-semibold brand-gradient text-white rounded-md hover:opacity-90 transition-opacity">Add Automatically</button>
+                            <button type="button" onClick={() => handleAddAutomatically(result.id)} disabled={checkingInteractionId === result.id} className="px-3 py-1.5 text-sm font-semibold brand-gradient text-white rounded-md hover:opacity-90 transition-opacity w-36 text-center flex justify-center items-center">
+                              {checkingInteractionId === result.id ? <SpinnerIcon className="w-5 h-5"/> : 'Add Automatically'}
+                            </button>
                             </>
                         )}
                         {(result.status === 'failed' || result.status === 'duplicate') && (

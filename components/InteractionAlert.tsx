@@ -31,13 +31,13 @@ const InteractionAlert: React.FC<InteractionAlertProps> = ({ result, onCheck, is
         <h3 className={`text-lg font-semibold ${hasInteractions ? 'text-red-800' : 'text-green-800'}`}>
           {hasInteractions ? "Interaction Alert" : "No Interactions Found"}
         </h3>
-        <p className={`text-sm mt-1 ${hasInteractions ? 'text-red-700' : 'text-green-700'}`}>
-          {result.summary}
-        </p>
         
-        {isExpanded && result.details && result.details.length > 0 && (
+        {isExpanded && hasInteractions && (
           <div className="mt-4 space-y-4 animate-fade-in">
-            {result.details.map((detail, index) => (
+             <p className="text-sm text-red-700">
+                {result.summary}
+            </p>
+            {result.details && result.details.map((detail, index) => (
               <div key={index} className="border-t border-red-200 pt-3">
                 <div className="flex items-start justify-between">
                    <div>

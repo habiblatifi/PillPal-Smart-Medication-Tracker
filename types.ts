@@ -1,4 +1,19 @@
 
+// Fix: Add missing Web Speech API type definitions.
+// These interfaces are for the Web Speech API, which is not yet fully standardized
+// and might not be available in all TypeScript lib files.
+// See: https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognitionErrorEvent
+interface SpeechRecognitionErrorEvent extends Event {
+  readonly error: 'no-speech' | 'aborted' | 'audio-capture' | 'network' | 'not-allowed' | 'service-not-allowed' | 'bad-grammar' | 'language-not-supported';
+  readonly message: string;
+}
+
+// See: https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognitionEvent
+interface SpeechRecognitionEvent extends Event {
+  readonly resultIndex: number;
+  readonly results: SpeechRecognitionResultList;
+}
+
 declare global {
   interface AIStudio {
     camera: {
