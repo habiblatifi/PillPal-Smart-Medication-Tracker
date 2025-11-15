@@ -1,11 +1,17 @@
-
 ## Run Locally
 
-**Prerequisites:**  Node.js
+### Prerequisites
+- Node.js (v18 or later)
 
+### Setup Instructions
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. **Install dependencies**
+   ```bash
+   npm install
+Set up the environment variable Create a file named .env.local in the project root and add your Gemini API key:
+
+GEMINI_API_KEY=your_api_key_here
+Run the app locally
+
+npm run dev
+Open your browser and navigate to: http://localhost:5173
