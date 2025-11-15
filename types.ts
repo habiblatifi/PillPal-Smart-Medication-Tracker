@@ -24,6 +24,8 @@ declare global {
   interface Window {
     SpeechRecognition: any;
     webkitSpeechRecognition: any;
+    // Fix: Add aistudio to Window interface for proper type checking
+    aistudio?: AIStudio;
   }
 }
 

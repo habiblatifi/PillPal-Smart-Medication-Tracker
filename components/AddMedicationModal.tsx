@@ -50,21 +50,22 @@ const initialMedState: Omit<Medication, 'id' | 'doseStatus'> = {
 const normalizeString = (str: string | undefined): string => (str || '').trim().toLowerCase();
 
 const dosageMatches = (dosage1: string, dosage2: string): boolean => {
-    const norm1 = normalizeString(dosage1);
-    const norm2 = normalizeString(dosage2);
+    // Normalize by removing all spaces and making it lowercase
+    const norm1 = normalizeString(dosage1).replace(/\s+/g, '');
+    const norm2 = normalizeString(dosage2).replace(/\s+/g, '');
     if (norm1 === norm2) return true;
 
     // Regex to extract core dosage strength and unit (e.g., "10mg", "1%", "25 mcg")
     const coreDosageRegex = /^[\d.]+\s?(mg|mcg|g|%|iu|meq|ml)/;
-    const core1 = norm1.match(coreDosageRegex)?.[0]?.replace(/\s+/g, '');
-    const core2 = norm2.match(coreDosageRegex)?.[0]?.replace(/\s+/g, '');
+    const core1 = normalizeString(dosage1).match(coreDosageRegex)?.[0]?.replace(/\s+/g, '');
+    const core2 = normalizeString(dosage2).match(coreDosageRegex)?.[0]?.replace(/\s+/g, '');
     
-    // If a core dosage with a unit was successfully extracted from both, compare them after removing spaces
+    // If a core dosage with a unit was successfully extracted from both, compare them
     if (core1 && core2) {
         return core1 === core2;
     }
 
-    // Fallback if regex fails on one or both (e.g., for non-standard dosages)
+    // Fallback for non-standard dosages
     return false;
 };
 
@@ -73,6 +74,7 @@ const nameMatches = (name1: string, name2: string): boolean => {
     const norm2 = normalizeString(name2);
     if (!norm1 || !norm2) return false;
     // Check if one name is a substring of the other to catch brand/generic variations
+    // e.g. "Magnesium Glycinate" is inside "Nature's Bounty Magnesium Glycinate"
     return norm1.includes(norm2) || norm2.includes(norm1);
 };
 
@@ -83,7 +85,7 @@ const resizeImage = (base64Str: string, maxWidth = 128, maxHeight = 128): Promis
         img.src = `data:image/jpeg;base64,${base64Str}`;
         img.onload = () => {
             const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('d');
             if (!ctx) {
                 resolve(`data:image/jpeg;base64,${base64Str}`); // return original if canvas fails
                 return;
@@ -273,7 +275,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         return;
     }
     try {
-        const imageBlob: Blob = await window.aistudio.camera.getPicture();
+        const imageBlob: Blob = await window.aistudio!.camera.getPicture();
         const base64Image = await blobToBase64(imageBlob);
         await handleImageIdentification(base64Image);
     } catch (error) {
@@ -416,7 +418,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         setVoiceTargetField(null);
         recognitionRef.current = null;
     };
-    // FIX: Use specific event types instead of any to prevent type errors.
+    // Fix: Add explicit types for event handlers to prevent type errors.
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       if (event.error !== 'aborted') {
         let errorMessage = `Voice recognition error: ${event.error}`;
@@ -426,7 +428,6 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         setError(errorMessage);
       }
     };
-    // FIX: Use specific event types instead of any to prevent type errors.
     recognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[0][0].transcript.replace(/\.$/, '');
         (async () => {
@@ -488,6 +489,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     if (!med.name || !med.dosage) {
         setError('Medication name and dosage are required.');
         return;
@@ -497,9 +499,9 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         requestConfirmation({
             title: 'Reminder Time Required',
             message: 'Please add at least one reminder time for this medication schedule. If no specific times are needed, you can change the frequency to "as needed".',
-            onConfirm: () => {}, // Just closes the alert
+            onConfirm: () => {}, // This just closes the alert modal
             confirmText: 'OK',
-            cancelText: ''
+            cancelText: '', // Hides the cancel button
         });
         return;
     }
@@ -528,8 +530,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
     }
 
     setIsCheckingInteraction(true);
-    setError('');
-
+    
     const addAction = () => {
         onAdd(finalMedData);
         if (editingBatchItemId) {
@@ -653,6 +654,17 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget || modalView === 'processing') {
+      return;
+    }
+
+    if (modalView === 'form' && editingBatchItemId) {
+      requestConfirmation({
+        title: "Unsaved Changes",
+        message: "You are editing a medication. Please save your changes or return to the review list before closing.",
+        onConfirm: () => {},
+        confirmText: 'OK',
+        cancelText: '',
+      });
       return;
     }
 

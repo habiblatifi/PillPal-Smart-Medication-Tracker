@@ -115,7 +115,17 @@ export const identifyMedicationByName = async (name: string, dosage: string): Pr
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: `Provide details for the medication: ${name} ${dosage}. If a dosage is not provided, suggest a common one. I need its common dosage, its common frequency (e.g., "Once daily"), standard food instructions ("With food", "Without food", or "No specific instructions"), its drug class, a brief summary of common side effects, the most common physical characteristics: pill imprint (text on the pill), shape, and color, a short patient-friendly note on its primary use (usageNote), and a list of 2-3 common alternative medications (similarMeds). Provide only the most common values. If you cannot identify it, return empty strings/arrays for all fields.`,
+      contents: `Provide details for the medication: ${name} ${dosage}. If a dosage is not provided, suggest a common one.
+I need:
+- common dosage
+- common frequency (e.g., "Once daily"). **For medications with a standard tapering schedule (like steroid dose packs), provide the full, detailed tapering schedule as the frequency.**
+- standard food instructions ("With food", "Without food", or "No specific instructions")
+- drug class
+- a brief summary of common side effects
+- the most common physical characteristics: pill imprint (text on the pill), shape, and color
+- a short patient-friendly note on its primary use (usageNote)
+- a list of 2-3 common alternative medications (similarMeds).
+Provide only the most common values. If you cannot identify it, return empty strings/arrays for all fields.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -236,18 +246,24 @@ export const getTimesFromFrequency = async (frequencyText: string): Promise<stri
       model: 'gemini-2.5-flash',
       contents: `You are an intelligent pharmacy assistant. Your task is to parse a medication frequency instruction and return a JSON array of suggested 24-hour format times (HH:mm). Be smart about typical medication schedules.
       Instruction: "${frequencyText}".
-      Examples of your high-quality work:
+      
+      **CRITICAL INSTRUCTIONS:**
+      1.  For multi-day tapering schedules (e.g., "Day 1: 6 tablets; Day 2: 5 tablets..."), you MUST return the suggested times for the FIRST day mentioned ONLY. Spread the times evenly throughout waking hours (approx. 08:00 to 22:00).
+      2.  If no specific daily times are applicable (like for "as needed", "weekly", or vague ranges like "every 4-6 hours"), return an empty array.
+      3.  Return ONLY the JSON array.
+
+      **EXAMPLES of your high-quality work:**
       - "Once daily" -> ["09:00"]
       - "Twice a day" or "every 12 hours" -> ["09:00", "21:00"]
       - "Every 8 hours" -> ["07:00", "15:00", "23:00"]
       - "3 times a day with meals" -> ["08:00", "12:00", "18:00"]
-      - "4 times a day" -> ["08:00", "12:00", "16:00", "20:00"]
+      - "4 times a day" or "Up to 4 times daily" -> ["08:00", "12:00", "16:00", "20:00"]
       - "Take 1 tablet by mouth every morning" -> ["08:00"]
       - "At bedtime" -> ["22:00"]
+      - "Tapering dose... Day 1: 6 tablets; Day 2: 5 tablets..." -> ["08:00", "11:00", "14:00", "17:00", "20:00", "22:00"]
       - "As needed for pain" -> []
-      - "Every 4-6 hours" -> []
       - "Weekly" -> []
-      Return ONLY the JSON array. If no specific daily times are applicable (like for "as needed" or "weekly"), return an empty array.`,
+      `,
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -260,7 +276,7 @@ export const getTimesFromFrequency = async (frequencyText: string): Promise<stri
     const jsonString = response.text.trim();
     const result = JSON.parse(jsonString);
     if (Array.isArray(result) && result.every(item => typeof item === 'string' && /^\d{2}:\d{2}$/.test(item))) {
-        return result;
+        return result.sort();
     }
     return [];
   } catch (error) {
