@@ -8,20 +8,19 @@
 1. **Install dependencies**
    ```bash
    npm install
-Set up the environment variable
 
+2. **Set up the environment variable
 Create a file named .env.local in the project root and add your Gemini API key:
 
-ini
+   ```bash
 GEMINI_API_KEY=your_api_key_here
 
-Run the app locally
+3. **Run the app locally
 
    ```bash
    npm run dev
 
-Open your browser and navigate to:
-
+4. Open your browser and navigate to:
 http://localhost:5173
 
 
