@@ -56,10 +56,10 @@ const dosageMatches = (dosage1: string, dosage2: string): boolean => {
 
     // Regex to extract core dosage strength and unit (e.g., "10mg", "1%", "25 mcg")
     const coreDosageRegex = /^[\d.]+\s?(mg|mcg|g|%|iu|meq|ml)/;
-    const core1 = norm1.match(coreDosageRegex)?.[0];
-    const core2 = norm2.match(coreDosageRegex)?.[0];
+    const core1 = norm1.match(coreDosageRegex)?.[0]?.replace(/\s+/g, '');
+    const core2 = norm2.match(coreDosageRegex)?.[0]?.replace(/\s+/g, '');
     
-    // If a core dosage with a unit was successfully extracted from both, compare them
+    // If a core dosage with a unit was successfully extracted from both, compare them after removing spaces
     if (core1 && core2) {
         return core1 === core2;
     }
@@ -69,7 +69,11 @@ const dosageMatches = (dosage1: string, dosage2: string): boolean => {
 };
 
 const nameMatches = (name1: string, name2: string): boolean => {
-    return normalizeString(name1) === normalizeString(name2);
+    const norm1 = normalizeString(name1);
+    const norm2 = normalizeString(name2);
+    if (!norm1 || !norm2) return false;
+    // Check if one name is a substring of the other to catch brand/generic variations
+    return norm1.includes(norm2) || norm2.includes(norm1);
 };
 
 
@@ -490,7 +494,13 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
     }
 
     if (med.times.length === 0 && med.frequency && !med.frequency.toLowerCase().includes('as needed')) {
-        setError('Please add at least one reminder time for this medication schedule.');
+        requestConfirmation({
+            title: 'Reminder Time Required',
+            message: 'Please add at least one reminder time for this medication schedule. If no specific times are needed, you can change the frequency to "as needed".',
+            onConfirm: () => {}, // Just closes the alert
+            confirmText: 'OK',
+            cancelText: ''
+        });
         return;
     }
 
@@ -642,9 +652,25 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
 
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget && modalView !== 'processing') {
-        onClose();
+    if (e.target !== e.currentTarget || modalView === 'processing') {
+      return;
     }
+
+    if (modalView === 'review') {
+      const unreviewedCount = batchResults.filter(r => r.status !== 'added').length;
+      if (unreviewedCount > 0) {
+        requestConfirmation({
+          title: "Review Incomplete",
+          message: `You still have ${unreviewedCount} image(s) to review. Please add or remove them before closing.`,
+          onConfirm: () => {}, // Just closes the alert
+          confirmText: 'OK',
+          cancelText: '',
+        });
+        return;
+      }
+    }
+    
+    onClose();
   };
 
   const renderHeader = () => {
