@@ -44,6 +44,8 @@ const initialMedState: Omit<Medication, 'id' | 'doseStatus'> = {
     shape: '',
     color: '',
     refillHistory: [],
+    startDate: undefined,
+    taperingSchedule: undefined,
 };
 
 // Helper functions for robust duplicate checking
@@ -73,8 +75,11 @@ const nameMatches = (name1: string, name2: string): boolean => {
     const norm1 = normalizeString(name1);
     const norm2 = normalizeString(name2);
     if (!norm1 || !norm2) return false;
+    // First check for exact match after normalization (handles case variations)
+    if (norm1 === norm2) return true;
     // Check if one name is a substring of the other to catch brand/generic variations
     // e.g. "Magnesium Glycinate" is inside "Nature's Bounty Magnesium Glycinate"
+    // Also handles variations like "MethylPREDNISolone" vs "Methylprednisolone"
     return norm1.includes(norm2) || norm2.includes(norm1);
 };
 
@@ -116,7 +121,41 @@ const resizeImage = (base64Str: string, maxWidth = 128, maxHeight = 128): Promis
 
 
 const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd, onUpdate, existingMedication, medications, requestConfirmation }) => {
-  const [med, setMed] = useState<Omit<Medication, 'id' | 'doseStatus'>>(initialMedState);
+  // Check for prefilled medication data
+  const getPrefilledData = (): Omit<Medication, 'id' | 'doseStatus'> | null => {
+    try {
+      const prefilled = localStorage.getItem('prefilledMedication');
+      if (prefilled) {
+        const data = JSON.parse(prefilled);
+        localStorage.removeItem('prefilledMedication'); // Clear after reading
+        return { ...initialMedState, ...data };
+      }
+    } catch (e) {
+      console.error('Failed to parse prefilled medication', e);
+    }
+    return null;
+  };
+
+  const prefilledData = getPrefilledData();
+  const [med, setMed] = useState<Omit<Medication, 'id' | 'doseStatus'>>(
+    existingMedication ? {
+      name: existingMedication.name,
+      dosage: existingMedication.dosage,
+      frequency: existingMedication.frequency,
+      times: existingMedication.times,
+      food: existingMedication.food,
+      drugClass: existingMedication.drugClass,
+      sideEffects: existingMedication.sideEffects,
+      image: existingMedication.image,
+      quantity: existingMedication.quantity,
+      refillReminder: existingMedication.refillReminder,
+      imprint: existingMedication.imprint,
+      shape: existingMedication.shape,
+      color: existingMedication.color,
+      usageNote: existingMedication.usageNote,
+      similarMeds: existingMedication.similarMeds,
+    } : (prefilledData || initialMedState)
+  );
   
   const [isLoading, setIsLoading] = useState(false);
   const [isSearchingDetails, setIsSearchingDetails] = useState(false);
@@ -131,6 +170,10 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
   const [checkingInteractionId, setCheckingInteractionId] = useState<string | null>(null);
   const [imprintSearch, setImprintSearch] = useState('');
   const [isCameraAvailable, setIsCameraAvailable] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [showCameraPreview, setShowCameraPreview] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   
   const [modalView, setModalView] = useState<'form' | 'processing' | 'review'>('form');
   const [batchStatusText, setBatchStatusText] = useState<string | null>(null);
@@ -139,7 +182,21 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
 
 
   useEffect(() => {
-    setIsCameraAvailable(!!(window.aistudio && typeof window.aistudio.camera?.getPicture === 'function'));
+    // Check for custom aistudio camera API
+    const hasCustomCamera = !!(window.aistudio && typeof window.aistudio.camera?.getPicture === 'function');
+    // Check for standard browser camera API
+    const hasBrowserCamera = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    setIsCameraAvailable(hasCustomCamera || hasBrowserCamera);
+  }, []);
+
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -159,6 +216,8 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         shape: existingMedication.shape,
         color: existingMedication.color,
         refillHistory: existingMedication.refillHistory,
+        startDate: existingMedication.startDate,
+        taperingSchedule: existingMedication.taperingSchedule,
       });
     }
   }, [existingMedication]);
@@ -210,12 +269,15 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
   const addTime = () => setMed(prev => ({...prev, times: [...prev.times, '21:00']}));
   const removeTime = (index: number) => setMed(prev => ({...prev, times: prev.times.filter((_, i) => i !== index)}));
   
-  const blobToBase64 = (blob: Blob): Promise<string> => {
+  const blobToBase64 = (blob: Blob): Promise<{ base64: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
             if (reader.result) {
-                resolve((reader.result as string).split(',')[1]);
+                const dataUrl = reader.result as string;
+                const [mimePart, base64Part] = dataUrl.split(',');
+                const mimeType = mimePart.match(/data:([^;]+)/)?.[1] || blob.type || 'image/jpeg';
+                resolve({ base64: base64Part, mimeType });
             } else {
                 reject('Failed to convert blob to base64');
             }
@@ -225,15 +287,75 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
     });
   };
   
+  const parseTaperingSchedule = (frequencyText: string): { day1Tablets: number; schedule: { day: number; tablets: number }[] } | null => {
+    // Match patterns like "Day 1: 6 tablets; Day 2: 5 tablets; ..."
+    const taperingMatch = frequencyText.match(/Day\s+(\d+):\s*(\d+)\s+tablets?/gi);
+    if (!taperingMatch || taperingMatch.length < 2) return null;
+    
+    const schedule: { day: number; tablets: number }[] = [];
+    taperingMatch.forEach(match => {
+      const parts = match.match(/Day\s+(\d+):\s*(\d+)/i);
+      if (parts) {
+        schedule.push({ day: parseInt(parts[1]), tablets: parseInt(parts[2]) });
+      }
+    });
+    
+    if (schedule.length === 0) return null;
+    
+    // Sort by day number
+    schedule.sort((a, b) => a.day - b.day);
+    
+    return {
+      day1Tablets: schedule[0].tablets,
+      schedule
+    };
+  };
+
+  const generateTimesForTablets = (numTablets: number): string[] => {
+    if (numTablets <= 0) return [];
+    if (numTablets === 1) return ['09:00'];
+    
+    // Spread times evenly throughout waking hours (08:00 to 22:00 = 14 hours)
+    const startHour = 8;
+    const endHour = 22;
+    const totalMinutes = (endHour - startHour) * 60;
+    const interval = totalMinutes / (numTablets - 1);
+    
+    const times: string[] = [];
+    for (let i = 0; i < numTablets; i++) {
+      const minutes = startHour * 60 + i * interval;
+      const hours = Math.floor(minutes / 60);
+      const mins = Math.round(minutes % 60);
+      times.push(`${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
+    }
+    
+    return times.sort();
+  };
+
   const updateStateWithDetails = async (details: Partial<Medication>, image?: string) => {
     const newFrequency = details.frequency || '';
     let newTimes: string[] = [];
+    let taperingSchedule: { day: number; tablets: number }[] | undefined = undefined;
+    let startDate: string | undefined = undefined;
 
     if (newFrequency) {
-        try {
-            newTimes = await getTimesFromFrequency(newFrequency);
-        } catch (e) {
-            console.error("Failed to fetch reminder times:", e);
+        // Check if it's a tapering schedule
+        const parsedSchedule = parseTaperingSchedule(newFrequency);
+        if (parsedSchedule) {
+            // Set times for Day 1 based on number of tablets
+            newTimes = generateTimesForTablets(parsedSchedule.day1Tablets);
+            taperingSchedule = parsedSchedule.schedule;
+            // Set start date to today if not already set
+            if (!existingMedication?.startDate) {
+                startDate = new Date().toISOString().split('T')[0];
+            }
+        } else {
+            // Use AI to parse regular frequency
+            try {
+                newTimes = await getTimesFromFrequency(newFrequency);
+            } catch (e) {
+                console.error("Failed to fetch reminder times:", e);
+            }
         }
     }
      
@@ -242,47 +364,147 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         ...details,
         image: image || details.image || prev.image,
         times: newTimes,
+        taperingSchedule,
+        startDate: startDate || prev.startDate || existingMedication?.startDate,
     }));
   }
 
-  const handleImageIdentification = async (base64Image: string) => {
+  const handleImageIdentification = async (base64Image: string, mimeType: string = 'image/jpeg') => {
     setIsLoading(true);
     setError('');
     try {
-      const identifiedData = await identifyMedication(base64Image); 
+      const identifiedData = await identifyMedication(base64Image, mimeType); 
       const resizedImage = await resizeImage(base64Image); 
       
-      if(identifiedData.name) {
+      // Check if we got a valid name (not empty, not undefined, not just whitespace)
+      const hasValidName = identifiedData.name && identifiedData.name.trim().length > 0;
+      
+      if(hasValidName) {
         await updateStateWithDetails(identifiedData, resizedImage);
         if (!identifiedData.dosage) {
           setTimeout(() => dosageInputRef.current?.focus(), 100);
         }
       } else {
-        setError("Could not identify the medication. Please enter details manually.");
-        setMed(prev => ({ ...prev, image: resizedImage }));
+        // If no name but we have an image, allow manual entry
+        // Set the image so user can still add the medication manually
+        setMed(prev => ({
+          ...prev,
+          image: resizedImage,
+        }));
+        
+        // Show popup but DON'T close window - let user enter manually
+        requestConfirmation({
+          title: 'Identification Unavailable',
+          message: 'Could not automatically identify the medication from this image. The image has been saved - please enter the medication details manually below.',
+          onConfirm: () => {
+            // Focus on name field to help user start entering
+            setTimeout(() => {
+              const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
+              nameInput?.focus();
+            }, 100);
+          },
+          confirmText: 'OK',
+          cancelText: '',
+          actionStyle: 'default',
+        });
+        setIsLoading(false);
+        return;
       }
-    } catch (e) {
-      setError("An error occurred while identifying the medication.");
-      console.error(e);
+    } catch (e: any) {
+      const errorMessage = e?.message || "An error occurred while identifying the medication.";
+      console.error("Image identification error:", e);
+      console.error("Error details:", errorMessage);
+      
+      // Check if it's a quota error - if so, save the image and allow manual entry
+      const isQuotaError = errorMessage.includes('quota') || errorMessage.includes('rate limit');
+      
+      if (isQuotaError) {
+        // Save the image so user can still add medication manually
+        try {
+          const resizedImage = await resizeImage(base64Image);
+          setMed(prev => ({
+            ...prev,
+            image: resizedImage,
+          }));
+        } catch (resizeError) {
+          console.error("Failed to resize image:", resizeError);
+        }
+        
+        // Show helpful message for quota errors
+        requestConfirmation({
+          title: 'API Quota Exceeded',
+          message: 'The medication identification service is temporarily unavailable due to high usage. Your image has been saved - please enter the medication details manually below. You can also try again in a few minutes.',
+          onConfirm: () => {
+            // Focus on name field to help user start entering
+            setTimeout(() => {
+              const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
+              nameInput?.focus();
+            }, 100);
+          },
+          confirmText: 'Enter Manually',
+          cancelText: '',
+          actionStyle: 'default',
+        });
+      } else {
+        // For other errors, show generic message
+        requestConfirmation({
+          title: 'Identification Failed',
+          message: `Could not identify the medication: ${errorMessage}. You can try another image or enter the details manually.`,
+          onConfirm: () => {
+            // Don't close - let user try again
+          },
+          confirmText: 'OK',
+          cancelText: '',
+          actionStyle: 'default',
+        });
+      }
+      setIsLoading(false);
+      return;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleTakePhoto = async () => {
+  const startCamera = async () => {
     if (!isCameraAvailable) {
         setError("Camera is not available in this environment. Try uploading an image instead.");
         return;
     }
+    
     try {
-        const imageBlob: Blob = await window.aistudio!.camera.getPicture();
-        const base64Image = await blobToBase64(imageBlob);
-        await handleImageIdentification(base64Image);
+      // Try custom aistudio camera first
+      if (window.aistudio && typeof window.aistudio.camera?.getPicture === 'function') {
+        const imageBlob: Blob = await window.aistudio.camera.getPicture();
+        const { base64, mimeType } = await blobToBase64(imageBlob);
+        await processCapturedImage(base64, mimeType);
+        return;
+      }
+      
+      // Use standard browser camera API with preview
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      streamRef.current = stream;
+      setShowCameraPreview(true);
+      
+      // Wait for video element to be ready
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
+      }, 100);
     } catch (error) {
       console.error("Camera error:", error);
       if (error instanceof Error) {
         if (error.name === 'NotAllowedError' || error.message.includes('permission')) {
             setError("Camera permission denied. Please allow camera access in your browser settings.");
+        } else if (error.name === 'NotFoundError') {
+            setError("No camera found. Please connect a camera or upload an image instead.");
         } else {
             setError("Could not access the camera. It might be in use by another application.");
         }
@@ -290,6 +512,101 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         setError("Could not access the camera. It might be in use by another application.");
       }
     }
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || !streamRef.current) return;
+    
+    try {
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Could not get canvas context');
+      
+      ctx.drawImage(video, 0, 0);
+      
+      // Stop camera stream
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+      setShowCameraPreview(false);
+      
+      // Convert canvas to blob
+      const imageBlob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Failed to capture image'));
+        }, 'image/jpeg', 0.9);
+      });
+      
+      const { base64, mimeType } = await blobToBase64(imageBlob);
+      await processCapturedImage(base64, mimeType);
+    } catch (error) {
+      console.error("Capture error:", error);
+      setError("Failed to capture photo. Please try again.");
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      setShowCameraPreview(false);
+    }
+  };
+
+  const cancelCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setShowCameraPreview(false);
+  };
+
+  const processCapturedImage = async (base64: string, mimeType: string) => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const identifiedData = await identifyMedication(base64, mimeType);
+      const hasValidName = identifiedData.name && identifiedData.name.trim().length > 0;
+      
+      if (hasValidName) {
+        // Check if duplicate exists
+        if (isMedicationDuplicate(identifiedData, undefined, undefined)) {
+          requestConfirmation({
+            title: 'Duplicate Medication',
+            message: `"${identifiedData.name}" already exists in your medication list. Would you like to try a different image?`,
+            onConfirm: () => {
+              setError('');
+              setIsLoading(false);
+              // Don't close - let user try again
+            },
+            confirmText: 'OK',
+            cancelText: '',
+            actionStyle: 'default',
+          });
+          return;
+        }
+      }
+      await handleImageIdentification(base64, mimeType);
+    } catch (e: any) {
+      const errorMessage = e?.message || "An error occurred while identifying the medication.";
+      console.error("Process captured image error:", e);
+      // Show popup for errors but DON'T close
+      requestConfirmation({
+        title: 'Identification Failed',
+        message: `Could not identify the medication: ${errorMessage}. You can try another image or enter the details manually.`,
+        onConfirm: () => {
+          // Don't close - let user try again
+        },
+        confirmText: 'OK',
+        cancelText: '',
+        actionStyle: 'default',
+      });
+      setIsLoading(false);
+    }
+  };
+
+  const handleTakePhoto = () => {
+    startCamera();
   };
   
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -301,8 +618,49 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
     fileInput.value = '';
 
     if (filesToProcess.length === 1) {
-        const base64 = await blobToBase64(filesToProcess[0]);
-        await handleImageIdentification(base64);
+        setIsLoading(true);
+        setError('');
+        try {
+          const { base64, mimeType } = await blobToBase64(filesToProcess[0]);
+          // Check for duplicate immediately
+          const identifiedData = await identifyMedication(base64, mimeType);
+          const hasValidName = identifiedData.name && identifiedData.name.trim().length > 0;
+          
+          if (hasValidName) {
+            // Check if duplicate exists
+            if (isMedicationDuplicate(identifiedData, undefined, undefined)) {
+              requestConfirmation({
+                title: 'Duplicate Medication',
+                message: `"${identifiedData.name}" already exists in your medication list. Would you like to try a different image?`,
+                onConfirm: () => {
+                  setError('');
+                  setIsLoading(false);
+                  // Don't close - let user try again
+                },
+                confirmText: 'OK',
+                cancelText: '',
+                actionStyle: 'default',
+              });
+              return;
+            }
+          }
+          await handleImageIdentification(base64, mimeType);
+        } catch (e: any) {
+          const errorMessage = e?.message || "An error occurred while processing the image.";
+          console.error("File change error:", e);
+          // Show popup for errors but DON'T close
+          requestConfirmation({
+            title: 'Identification Failed',
+            message: `Could not identify the medication: ${errorMessage}. You can try another image or enter the details manually.`,
+            onConfirm: () => {
+              // Don't close - let user try again
+            },
+            confirmText: 'OK',
+            cancelText: '',
+            actionStyle: 'default',
+          });
+          setIsLoading(false);
+        }
         return;
     }
 
@@ -314,8 +672,8 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         const file = filesToProcess[i];
         setBatchStatusText(`Processing ${i + 1}/${total}: ${file.name}`);
         try {
-            const base64Image = await blobToBase64(file);
-            const identifiedData = await identifyMedication(base64Image);
+            const { base64: base64Image, mimeType } = await blobToBase64(file);
+            const identifiedData = await identifyMedication(base64Image, mimeType);
             const resizedImage = await resizeImage(base64Image);
             const resultId = `${file.name}-${Date.now()}`;
             if (identifiedData.name && identifiedData.dosage) {
@@ -328,12 +686,90 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
                     status: 'identified'
                 });
             } else {
-                results.push({ id: resultId, fileName: file.name, base64Image, resizedImage, identifiedData: null, status: 'failed' });
+                results.push({ id: resultId, fileName: file.name, base64Image, resizedImage, identifiedData: null, status: 'failed', error: 'Could not identify medication from image' });
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(`Failed to process image ${file.name}:`, err);
-            const resizedImage = await resizeImage(await blobToBase64(file));
-            results.push({ id: `${file.name}-${Date.now()}`, fileName: file.name, base64Image: '', resizedImage, identifiedData: null, status: 'failed', error: err instanceof Error ? err.message : String(err) });
+            try {
+                const { base64: base64Image } = await blobToBase64(file);
+                const resizedImage = await resizeImage(base64Image);
+                
+                // Format error message to be user-friendly
+                let errorMessage = 'Failed to identify medication';
+                if (err?.message) {
+                    errorMessage = err.message;
+                    // Clean up JSON error messages
+                    if (errorMessage.includes('{') && errorMessage.includes('}')) {
+                        try {
+                            const errorObj = JSON.parse(errorMessage);
+                            if (errorObj.error?.message) {
+                                errorMessage = errorObj.error.message;
+                            } else if (errorObj.message) {
+                                errorMessage = errorObj.message;
+                            }
+                        } catch {
+                            // If parsing fails, extract meaningful parts
+                            if (errorMessage.includes('overloaded')) {
+                                errorMessage = 'Service temporarily unavailable. Please try again later or add manually.';
+                            } else if (errorMessage.includes('503')) {
+                                errorMessage = 'Service temporarily unavailable. Please try again later or add manually.';
+                            } else {
+                                // Remove JSON formatting
+                                errorMessage = errorMessage.replace(/\{.*?\}/g, '').trim() || 'Failed to identify medication';
+                            }
+                        }
+                    }
+                    // Handle specific error types
+                    if (errorMessage.includes('overloaded') || errorMessage.includes('UNAVAILABLE')) {
+                        errorMessage = 'Service temporarily unavailable. Please try again later or add manually.';
+                    }
+                }
+                
+                results.push({ 
+                    id: `${file.name}-${Date.now()}`, 
+                    fileName: file.name, 
+                    base64Image, 
+                    resizedImage, 
+                    identifiedData: null, 
+                    status: 'failed', 
+                    error: errorMessage 
+                });
+            } catch (resizeErr) {
+                // If even resizing fails, add without image
+                let errorMessage = 'Failed to process image';
+                if (err?.message) {
+                    errorMessage = err.message;
+                    // Clean up JSON error messages
+                    if (errorMessage.includes('{') && errorMessage.includes('}')) {
+                        try {
+                            const errorObj = JSON.parse(errorMessage);
+                            if (errorObj.error?.message) {
+                                errorMessage = errorObj.error.message;
+                            } else if (errorObj.message) {
+                                errorMessage = errorObj.message;
+                            }
+                        } catch {
+                            if (errorMessage.includes('overloaded') || errorMessage.includes('UNAVAILABLE')) {
+                                errorMessage = 'Service temporarily unavailable. Please try again later or add manually.';
+                            } else {
+                                errorMessage = errorMessage.replace(/\{.*?\}/g, '').trim() || 'Failed to process image';
+                            }
+                        }
+                    }
+                    if (errorMessage.includes('overloaded') || errorMessage.includes('UNAVAILABLE')) {
+                        errorMessage = 'Service temporarily unavailable. Please try again later or add manually.';
+                    }
+                }
+                results.push({ 
+                    id: `${file.name}-${Date.now()}`, 
+                    fileName: file.name, 
+                    base64Image: '', 
+                    resizedImage: '', 
+                    identifiedData: null, 
+                    status: 'failed', 
+                    error: errorMessage 
+                });
+            }
         }
     }
     setBatchResults(results);
@@ -463,13 +899,12 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
     medIdToExclude?: string,
     batchIdToExclude?: string
   ): boolean => {
-    if (!medToCheck.name || !medToCheck.dosage) return false;
+    if (!medToCheck.name) return false;
 
     const inList = medications.some(
       (existing) =>
         existing.id !== medIdToExclude &&
-        nameMatches(existing.name, medToCheck.name!) &&
-        dosageMatches(existing.dosage, medToCheck.dosage!)
+        nameMatches(existing.name, medToCheck.name!)
     );
 
     if (inList) return true;
@@ -479,9 +914,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
         r.id !== batchIdToExclude &&
         r.status === 'added' &&
         r.identifiedData?.name &&
-        r.identifiedData?.dosage &&
-        nameMatches(r.identifiedData.name, medToCheck.name!) &&
-        dosageMatches(r.identifiedData.dosage, medToCheck.dosage!)
+        nameMatches(r.identifiedData.name, medToCheck.name!)
     );
     
     return inBatch;
@@ -534,7 +967,22 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
     const addAction = () => {
         onAdd(finalMedData);
         if (editingBatchItemId) {
-            setBatchResults(prev => prev.map(r => r.id === editingBatchItemId ? { ...r, status: 'added' } : r));
+            setBatchResults(prev => {
+              const updated = prev.map(r => r.id === editingBatchItemId ? { ...r, status: 'added' } : r);
+              // Auto-close if no items left to process
+              if (updated.filter(r => r.status === 'identified' || r.status === 'failed').length === 0) {
+                setTimeout(() => {
+                  requestConfirmation({
+                    title: 'All Processed',
+                    message: 'All images have been processed.',
+                    onConfirm: () => onClose(),
+                    confirmText: 'OK',
+                    cancelText: '',
+                  });
+                }, 100);
+              }
+              return updated;
+            });
             setEditingBatchItemId(null);
             setMed(initialMedState);
             setModalView('review');
@@ -576,7 +1024,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
       
       const { identifiedData, resizedImage } = result;
 
-      if (isMedicationDuplicate({ name: identifiedData.name, dosage: identifiedData.dosage }, undefined, resultId)) {
+      if (isMedicationDuplicate({ name: identifiedData.name }, undefined, resultId)) {
         setBatchResults(prev => prev.map(r => r.id === resultId ? { ...r, status: 'duplicate', error: 'Already in your list.' } : r));
         return;
       }
@@ -626,6 +1074,21 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
     const result = batchResults.find(r => r.id === resultId);
     if (!result) return;
 
+    // Check for duplicate before opening edit window
+    if (result.identifiedData?.name) {
+      if (isMedicationDuplicate({ name: result.identifiedData.name }, undefined, resultId)) {
+        requestConfirmation({
+          title: 'Duplicate Medication',
+          message: `"${result.identifiedData.name}" already exists in your medication list. Would you like to remove this item from the review list?`,
+          onConfirm: () => handleRemoveBatchItem(resultId),
+          confirmText: 'Remove',
+          cancelText: 'Keep',
+          actionStyle: 'default',
+        });
+        return;
+      }
+    }
+
     if (!result.identifiedData) { // Case for failed identification
       setMed({
         ...initialMedState,
@@ -641,7 +1104,22 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
   };
 
   const handleRemoveBatchItem = (resultId: string) => {
-    setBatchResults(prev => prev.filter(r => r.id !== resultId));
+    setBatchResults(prev => {
+      const updated = prev.filter(r => r.id !== resultId);
+      // Auto-close if no items left
+      if (updated.length === 0) {
+        setTimeout(() => {
+          requestConfirmation({
+            title: 'All Processed',
+            message: 'All images have been processed.',
+            onConfirm: () => onClose(),
+            confirmText: 'OK',
+            cancelText: '',
+          });
+        }, 100);
+      }
+      return updated;
+    });
   };
   
   const handleReturnToReview = () => {
@@ -653,19 +1131,58 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
 
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Don't close if clicking on a nested modal/dialog
+    const target = e.target as HTMLElement;
+    if (target.closest('[role="dialog"]') && target.closest('[role="dialog"]') !== e.currentTarget) {
+      return;
+    }
+    
     if (e.target !== e.currentTarget || modalView === 'processing') {
       return;
     }
 
-    if (modalView === 'form' && editingBatchItemId) {
-      requestConfirmation({
-        title: "Unsaved Changes",
-        message: "You are editing a medication. Please save your changes or return to the review list before closing.",
-        onConfirm: () => {},
-        confirmText: 'OK',
-        cancelText: '',
-      });
+    // Check if form has unsaved data (image uploaded or form filled)
+    // This check applies to both 'form' view and initial view (when image is uploaded but form not yet shown)
+    const hasImage = med.image && med.image.trim() !== '';
+    const hasName = med.name && med.name.trim() !== '';
+    const hasDosage = med.dosage && med.dosage.trim() !== '';
+    const hasFrequency = med.frequency && med.frequency.trim() !== '';
+    const hasData = hasImage || hasName || hasDosage || hasFrequency;
+    
+    // If we have any data (especially an image), prevent closing
+    if (hasData && !existingMedication && !editingBatchItemId) {
+      // If image is uploaded but form fields aren't filled, show specific message
+      if (hasImage && (!hasName && !hasDosage && !hasFrequency)) {
+        requestConfirmation({
+          title: "Incomplete Medication",
+          message: "You still need to complete the medication details before closing. Please enter the medication name and other required information, or click Cancel to discard changes.",
+          onConfirm: () => {},
+          confirmText: 'OK',
+          cancelText: '',
+        });
+      } else {
+        requestConfirmation({
+          title: "Incomplete Medication",
+          message: "You still need to upload/take a photo and complete the medication details before closing. Please finish adding the medication or click Cancel to discard changes.",
+          onConfirm: () => {},
+          confirmText: 'OK',
+          cancelText: '',
+        });
+      }
       return;
+    }
+    
+    if (modalView === 'form') {
+      if (editingBatchItemId || existingMedication) {
+        requestConfirmation({
+          title: "Unsaved Changes",
+          message: "You are editing a medication. Please save your changes or return to the review list before closing.",
+          onConfirm: () => {},
+          confirmText: 'OK',
+          cancelText: '',
+        });
+        return;
+      }
     }
 
     if (modalView === 'review') {
@@ -717,22 +1234,106 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
             </button>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-4">
-          <button 
-              type="button" 
-              onClick={handleTakePhoto} 
-              disabled={isLoading || !isCameraAvailable} 
-              className="flex items-center justify-center gap-2 w-full brand-gradient text-white font-semibold py-2.5 px-4 rounded-lg hover:opacity-90 disabled:opacity-50 transition-all shadow-md"
-              title={!isCameraAvailable ? "Camera is not available in this environment" : "Take photo"}
-          >
-              <CameraIcon className="w-5 h-5"/>
-              Take Photo
-          </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isLoading} className="flex items-center justify-center gap-2 w-full bg-gray-200 text-gray-700 font-semibold py-2.5 px-4 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 transition-colors">
-            <SearchIcon className="w-5 h-5"/>
-            Upload Image
-          </button>
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" multiple />
+      <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-4">
+              <button 
+                  type="button" 
+                  onClick={handleTakePhoto} 
+                  disabled={isLoading || !isCameraAvailable} 
+                  className="flex items-center justify-center gap-2 w-full brand-gradient text-white font-semibold py-2.5 px-4 rounded-lg hover:opacity-90 disabled:opacity-50 transition-all shadow-md"
+                  title={!isCameraAvailable ? "Camera is not available in this environment" : "Take photo"}
+              >
+                  <CameraIcon className="w-5 h-5"/>
+                  Take Photo
+              </button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isLoading} className="flex items-center justify-center gap-2 w-full bg-gray-200 text-gray-700 font-semibold py-2.5 px-4 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 transition-colors">
+                <SearchIcon className="w-5 h-5"/>
+                Upload Image
+              </button>
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" multiple />
+          </div>
+          
+          {/* URL Upload */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+              <label htmlFor="image-url" className="block text-sm font-medium text-gray-700 mb-2">Or upload from URL</label>
+              <div className="flex gap-2">
+                  <input
+                      type="url"
+                      id="image-url"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                      placeholder="https://example.com/image.jpg"
+                      className="flex-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 text-sm"
+                      disabled={isLoading}
+                  />
+                  <button
+                      type="button"
+                      onClick={async () => {
+                        if (!imageUrl) {
+                          setError('Please enter an image URL');
+                          return;
+                        }
+                        setIsLoading(true);
+                        setError('');
+                        try {
+                          // Fetch image from URL
+                          const response = await fetch(imageUrl);
+                          if (!response.ok) throw new Error('Failed to fetch image from URL');
+                          const blob = await response.blob();
+                          if (!blob.type.startsWith('image/')) {
+                            throw new Error('URL does not point to a valid image');
+                          }
+                          const { base64, mimeType } = await blobToBase64(blob);
+                          
+                          // Check for duplicate immediately
+                          const identifiedData = await identifyMedication(base64, mimeType);
+                          const hasValidName = identifiedData.name && identifiedData.name.trim().length > 0;
+                          
+                          if (hasValidName) {
+                            if (isMedicationDuplicate(identifiedData, undefined, undefined)) {
+                              requestConfirmation({
+                                title: 'Duplicate Medication',
+                                message: `"${identifiedData.name}" already exists in your medication list. Would you like to try a different image?`,
+                                onConfirm: () => {
+                                  setError('');
+                                  setImageUrl('');
+                                  setIsLoading(false);
+                                  // Don't close - let user try again
+                                },
+                                confirmText: 'OK',
+                                cancelText: '',
+                                actionStyle: 'default',
+                              });
+                              return;
+                            }
+                          }
+                          
+                          await handleImageIdentification(base64, mimeType);
+                          setImageUrl('');
+                        } catch (e: any) {
+                          const errorMessage = e?.message || "Failed to load image from URL. Please check the URL and try again.";
+                          console.error("URL upload error:", e);
+                          // Show popup for errors but DON'T close
+                          requestConfirmation({
+                            title: 'Identification Failed',
+                            message: `Could not identify the medication: ${errorMessage}. You can try another image or enter the details manually.`,
+                            onConfirm: () => {
+                              // Don't close - let user try again
+                            },
+                            confirmText: 'OK',
+                            cancelText: '',
+                            actionStyle: 'default',
+                          });
+                          setIsLoading(false);
+                        }
+                      }}
+                      disabled={isLoading || !imageUrl}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold"
+                  >
+                      Load
+                  </button>
+              </div>
+          </div>
       </div>
 
        <div className="bg-gray-50 p-4 rounded-lg my-4">
@@ -826,7 +1427,16 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
                             {result.status === 'failed' ? (
                                 <>
                                 <p className="font-semibold text-red-700">Identification Failed</p>
-                                <p className="text-xs text-gray-500 truncate">{result.fileName}</p>
+                                {result.error && (
+                                    <p className="text-xs text-red-600 mt-1 break-words leading-relaxed">
+                                        {result.error.includes('overloaded') || result.error.includes('UNAVAILABLE') 
+                                            ? 'Service temporarily unavailable. Please add manually or try again later.'
+                                            : result.error.length > 100 
+                                            ? result.error.substring(0, 100) + '...'
+                                            : result.error}
+                                    </p>
+                                )}
+                                <p className="text-xs text-gray-500 truncate mt-1">{result.fileName}</p>
                                 </>
                             ) : result.status === 'added' ? (
                                  <>
@@ -851,12 +1461,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
                     </div>
                      <div className="mt-3 flex justify-end gap-2">
                         {result.status === 'identified' && (
-                            <>
                             <button type="button" onClick={() => handleEditAndAdd(result.id)} className="px-3 py-1.5 text-sm font-semibold bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors">Edit & Add</button>
-                            <button type="button" onClick={() => handleAddAutomatically(result.id)} disabled={checkingInteractionId === result.id} className="px-3 py-1.5 text-sm font-semibold brand-gradient text-white rounded-md hover:opacity-90 transition-opacity w-36 text-center flex justify-center items-center">
-                              {checkingInteractionId === result.id ? <SpinnerIcon className="w-5 h-5"/> : 'Add Automatically'}
-                            </button>
-                            </>
                         )}
                         {(result.status === 'failed' || result.status === 'duplicate') && (
                            <>
@@ -872,8 +1477,59 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4 animate-fade-in" aria-modal="true" role="dialog" onClick={handleBackdropClick}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+    <>
+      {/* Camera Preview Modal */}
+      {showCameraPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex justify-center items-center z-[60] p-4">
+          <div className="bg-black rounded-xl w-full max-w-2xl flex flex-col">
+            <div className="p-4 flex justify-between items-center">
+              <h3 className="text-white text-lg font-semibold">Camera Preview</h3>
+              <button
+                type="button"
+                onClick={cancelCamera}
+                className="text-white hover:text-gray-300"
+              >
+                <XIcon className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="flex-1 flex items-center justify-center p-4">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="max-w-full max-h-[60vh] rounded-lg"
+                style={{ transform: 'scaleX(-1)' }} // Mirror the video
+              />
+            </div>
+            <div className="p-6 flex justify-center gap-4">
+              <button
+                type="button"
+                onClick={cancelCamera}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={capturePhoto}
+                className="px-6 py-3 brand-gradient text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-lg"
+              >
+                Capture Photo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4 animate-fade-in" aria-modal="true" role="dialog" onClick={handleBackdropClick} onMouseDown={(e) => {
+        // Prevent backdrop click if clicking on a modal or confirmation dialog
+        const target = e.target as HTMLElement;
+        if (target.closest('[role="dialog"]') && target !== e.currentTarget) {
+          e.stopPropagation();
+        }
+      }}>
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
             {renderHeader()}
             <main className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
@@ -900,8 +1556,9 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onAdd,
                 </footer>
             )}
         </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 export default AddMedicationModal;

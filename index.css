@@ -1,0 +1,814 @@
+/* High Contrast Mode */
+.high-contrast {
+  --background-light: #000000;
+  --background-card: #1a1a1a;
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --brand-primary-light: #60a5fa;
+  --brand-primary-dark: #3b82f6;
+  --brand-secondary: #34d399;
+  --danger: #f87171;
+  --warning: #fbbf24;
+}
+
+.high-contrast .bg-gray-50 {
+  background-color: #1a1a1a !important;
+}
+
+.high-contrast .bg-white {
+  background-color: #1a1a1a !important;
+  color: #ffffff !important;
+}
+
+.high-contrast .text-gray-800,
+.high-contrast .text-gray-700,
+.high-contrast .text-gray-600 {
+  color: #ffffff !important;
+}
+
+.high-contrast .text-gray-500,
+.high-contrast .text-gray-400 {
+  color: #cccccc !important;
+}
+
+.high-contrast .border-gray-200,
+.high-contrast .border-gray-300 {
+  border-color: #ffffff !important;
+}
+
+.high-contrast .bg-gray-100 {
+  background-color: #2a2a2a !important;
+}
+
+.high-contrast .bg-gray-200 {
+  background-color: #3a3a3a !important;
+}
+
+.high-contrast .text-gray-900,
+.high-contrast .text-gray-800,
+.high-contrast .text-gray-700,
+.high-contrast .text-gray-600,
+.high-contrast .text-gray-500,
+.high-contrast .text-gray-400 {
+  color: #ffffff !important;
+}
+
+.high-contrast label,
+.high-contrast h2,
+.high-contrast h3,
+.high-contrast h4,
+.high-contrast p {
+  color: #ffffff !important;
+}
+
+.high-contrast svg {
+  filter: brightness(0) invert(1);
+}
+
+.high-contrast .bg-indigo-600,
+.high-contrast .bg-indigo-500 {
+  background-color: #60a5fa !important;
+}
+
+.high-contrast .text-indigo-600,
+.high-contrast .text-indigo-500 {
+  color: #60a5fa !important;
+}
+
+.high-contrast input[type="text"],
+.high-contrast input[type="email"],
+.high-contrast select {
+  background-color: #2a2a2a !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+.high-contrast input[type="text"]::placeholder,
+.high-contrast input[type="email"]::placeholder {
+  color: #cccccc !important;
+}
+
+/* Additional text color overrides for better visibility */
+.high-contrast .text-blue-800,
+.high-contrast .text-blue-700,
+.high-contrast .text-blue-600 {
+  color: #60a5fa !important;
+}
+
+.high-contrast .text-yellow-800,
+.high-contrast .text-yellow-700,
+.high-contrast .text-yellow-600 {
+  color: #fbbf24 !important;
+}
+
+.high-contrast .text-red-800,
+.high-contrast .text-red-700,
+.high-contrast .text-red-600 {
+  color: #f87171 !important;
+}
+
+.high-contrast .text-green-800,
+.high-contrast .text-green-700,
+.high-contrast .text-green-600 {
+  color: #34d399 !important;
+}
+
+/* Ensure all text elements are visible */
+.high-contrast span,
+.high-contrast div,
+.high-contrast button,
+.high-contrast a {
+  color: inherit;
+}
+
+/* Background colors for better contrast */
+.high-contrast .bg-indigo-50,
+.high-contrast .bg-blue-50,
+.high-contrast .bg-yellow-50,
+.high-contrast .bg-green-50,
+.high-contrast .bg-red-50 {
+  background-color: #2a2a2a !important;
+  border-color: #ffffff !important;
+}
+
+/* Border colors */
+.high-contrast .border-b,
+.high-contrast .border-t,
+.high-contrast .border-l,
+.high-contrast .border-r,
+.high-contrast .border {
+  border-color: #ffffff !important;
+}
+
+/* Select dropdown styling */
+.high-contrast select {
+  background-color: #2a2a2a !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+.high-contrast select option {
+  background-color: #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+/* Button visibility */
+.high-contrast button {
+  border-color: #ffffff !important;
+}
+
+.high-contrast .bg-gray-600 {
+  background-color: #3a3a3a !important;
+}
+
+.high-contrast .bg-gray-600:hover {
+  background-color: #4a4a4a !important;
+}
+
+/* Navigation bar visibility */
+.high-contrast nav {
+  background-color: #1a1a1a !important;
+  border-color: #ffffff !important;
+}
+
+.high-contrast .text-indigo-600 {
+  color: #60a5fa !important;
+}
+
+.high-contrast .text-indigo-500 {
+  color: #60a5fa !important;
+}
+
+/* Checkbox and input visibility */
+.high-contrast input[type="checkbox"] {
+  border-color: #ffffff !important;
+  background-color: #2a2a2a !important;
+}
+
+.high-contrast input[type="checkbox"]:checked {
+  background-color: #60a5fa !important;
+  border-color: #60a5fa !important;
+}
+
+/* Ensure all headings are visible */
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3,
+.high-contrast h4,
+.high-contrast h5,
+.high-contrast h6 {
+  color: #ffffff !important;
+}
+
+/* Small text visibility */
+.high-contrast .text-xs,
+.high-contrast .text-sm {
+  color: #ffffff !important;
+}
+
+/* Card backgrounds - more specific targeting */
+.high-contrast .bg-white {
+  background-color: #1a1a1a !important;
+  border: 1px solid #ffffff !important;
+}
+
+.high-contrast .bg-white p,
+.high-contrast .bg-white label,
+.high-contrast .bg-white h3,
+.high-contrast .bg-white h4,
+.high-contrast .bg-white span,
+.high-contrast .bg-white div {
+  color: #ffffff !important;
+}
+
+/* Shadow adjustments for visibility */
+.high-contrast .shadow-lg,
+.high-contrast .shadow-md {
+  box-shadow: 0 0 0 1px #ffffff !important;
+}
+
+/* Bottom navigation visibility */
+.high-contrast nav {
+  background-color: #1a1a1a !important;
+  border-color: #ffffff !important;
+}
+
+.high-contrast nav .text-gray-500 {
+  color: #ffffff !important;
+}
+
+.high-contrast nav .text-indigo-600 {
+  color: #60a5fa !important;
+}
+
+.high-contrast nav .bg-indigo-600 {
+  background-color: #60a5fa !important;
+}
+
+.high-contrast nav button {
+  color: #ffffff !important;
+}
+
+.high-contrast nav button.text-indigo-600 {
+  color: #60a5fa !important;
+}
+
+.high-contrast nav button.text-gray-500 {
+  color: #ffffff !important;
+}
+
+/* Header visibility */
+.high-contrast .brand-gradient {
+  background: linear-gradient(to right, #60a5fa, #3b82f6) !important;
+}
+
+/* Backdrop blur override */
+.high-contrast .backdrop-blur-sm {
+  background-color: #1a1a1a !important;
+}
+
+/* Ensure all section text is visible */
+.high-contrast .space-y-6 > *,
+.high-contrast .space-y-4 > *,
+.high-contrast .space-y-2 > * {
+  color: inherit;
+}
+
+/* Specific fixes for Settings screen */
+.high-contrast .bg-white p.text-gray-600,
+.high-contrast .bg-white p.text-gray-500,
+.high-contrast .bg-white p.text-sm,
+.high-contrast .bg-white p.text-xs {
+  color: #ffffff !important;
+}
+
+.high-contrast .bg-white label.text-gray-700,
+.high-contrast .bg-white h3.text-gray-700 {
+  color: #ffffff !important;
+}
+
+/* Caregiver list visibility */
+.high-contrast .bg-white p.text-gray-700,
+.high-contrast .bg-white p.text-gray-500 {
+  color: #ffffff !important;
+}
+
+/* Button text visibility */
+.high-contrast button.text-white {
+  color: #ffffff !important;
+}
+
+.high-contrast button.text-gray-800,
+.high-contrast button.text-gray-700 {
+  color: #ffffff !important;
+}
+
+/* Link and interactive element visibility */
+.high-contrast a {
+  color: #60a5fa !important;
+}
+
+.high-contrast a:hover {
+  color: #93c5fd !important;
+}
+
+/* Force white text on dark backgrounds - comprehensive override */
+.high-contrast .bg-white,
+.high-contrast .bg-gray-50,
+.high-contrast .bg-gray-100 {
+  color: #ffffff !important;
+}
+
+/* Force all text within white cards to be white */
+.high-contrast .bg-white p,
+.high-contrast .bg-white span,
+.high-contrast .bg-white div,
+.high-contrast .bg-white label,
+.high-contrast .bg-white h1,
+.high-contrast .bg-white h2,
+.high-contrast .bg-white h3,
+.high-contrast .bg-white h4,
+.high-contrast .bg-white h5,
+.high-contrast .bg-white h6,
+.high-contrast .bg-gray-50 p,
+.high-contrast .bg-gray-50 span,
+.high-contrast .bg-gray-50 div,
+.high-contrast .bg-gray-50 label,
+.high-contrast .bg-gray-100 p,
+.high-contrast .bg-gray-100 span,
+.high-contrast .bg-gray-100 div,
+.high-contrast .bg-gray-100 label {
+  color: #ffffff !important;
+}
+
+/* Exception for colored text that should remain colored */
+.high-contrast .text-blue-800,
+.high-contrast .text-blue-700,
+.high-contrast .text-indigo-600,
+.high-contrast .text-indigo-500,
+.high-contrast .text-green-600,
+.high-contrast .text-green-700,
+.high-contrast .text-yellow-600,
+.high-contrast .text-yellow-700,
+.high-contrast .text-red-600,
+.high-contrast .text-red-700 {
+  color: inherit !important;
+}
+
+/* Ensure description text is visible */
+.high-contrast p.text-gray-500,
+.high-contrast p.text-gray-600,
+.high-contrast span.text-gray-500,
+.high-contrast span.text-gray-600,
+.high-contrast div.text-gray-500,
+.high-contrast div.text-gray-600 {
+  color: #ffffff !important;
+}
+
+/* Button visibility - Red buttons */
+.high-contrast .bg-red-100,
+.high-contrast .bg-red-200 {
+  background-color: #3a3a3a !important;
+  border: 1px solid #f87171 !important;
+}
+
+.high-contrast .text-red-700,
+.high-contrast .text-red-800 {
+  color: #f87171 !important;
+}
+
+.high-contrast button.bg-red-100,
+.high-contrast button.bg-red-200 {
+  color: #f87171 !important;
+  border: 1px solid #f87171 !important;
+}
+
+.high-contrast button.bg-red-100:hover,
+.high-contrast button.bg-red-200:hover {
+  background-color: #4a4a4a !important;
+  border-color: #fca5a5 !important;
+}
+
+/* Button visibility - Yellow buttons */
+.high-contrast .bg-yellow-100,
+.high-contrast .bg-yellow-200,
+.high-contrast .bg-yellow-300 {
+  background-color: #3a3a3a !important;
+  border: 1px solid #fbbf24 !important;
+}
+
+.high-contrast .text-yellow-700,
+.high-contrast .text-yellow-800 {
+  color: #fbbf24 !important;
+}
+
+.high-contrast button.bg-yellow-100,
+.high-contrast button.bg-yellow-200,
+.high-contrast button.bg-yellow-300 {
+  color: #fbbf24 !important;
+  border: 1px solid #fbbf24 !important;
+}
+
+.high-contrast button.bg-yellow-100:hover,
+.high-contrast button.bg-yellow-200:hover,
+.high-contrast button.bg-yellow-300:hover {
+  background-color: #4a4a4a !important;
+  border-color: #fcd34d !important;
+}
+
+/* Button visibility - Blue buttons */
+.high-contrast .bg-blue-100,
+.high-contrast .bg-blue-200 {
+  background-color: #3a3a3a !important;
+  border: 1px solid #60a5fa !important;
+}
+
+.high-contrast .text-blue-700,
+.high-contrast .text-blue-800 {
+  color: #60a5fa !important;
+}
+
+.high-contrast button.bg-blue-100,
+.high-contrast button.bg-blue-200 {
+  color: #60a5fa !important;
+  border: 1px solid #60a5fa !important;
+}
+
+/* Badge visibility - All badge colors */
+.high-contrast .bg-green-100 {
+  background-color: #3a3a3a !important;
+  border: 1px solid #34d399 !important;
+}
+
+.high-contrast .text-green-800 {
+  color: #34d399 !important;
+}
+
+.high-contrast .bg-blue-100 {
+  background-color: #3a3a3a !important;
+  border: 1px solid #60a5fa !important;
+}
+
+.high-contrast .text-blue-800 {
+  color: #60a5fa !important;
+}
+
+.high-contrast .bg-red-100 {
+  background-color: #3a3a3a !important;
+  border: 1px solid #f87171 !important;
+}
+
+.high-contrast .text-red-800 {
+  color: #f87171 !important;
+}
+
+.high-contrast .bg-gray-100 {
+  background-color: #3a3a3a !important;
+  border: 1px solid #ffffff !important;
+}
+
+.high-contrast .text-gray-800 {
+  color: #ffffff !important;
+}
+
+/* Input number field visibility */
+.high-contrast input[type="number"],
+.high-contrast input[type="text"],
+.high-contrast input[type="time"],
+.high-contrast input[type="email"] {
+  background-color: #2a2a2a !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+.high-contrast input[type="number"]::placeholder,
+.high-contrast input[type="text"]::placeholder,
+.high-contrast input[type="time"]::placeholder {
+  color: #cccccc !important;
+}
+
+/* Ensure input values are visible */
+.high-contrast input[type="number"]:not(:placeholder-shown),
+.high-contrast input[type="text"]:not(:placeholder-shown),
+.high-contrast input[type="time"]:not(:placeholder-shown) {
+  color: #ffffff !important;
+}
+
+/* Disabled button visibility */
+.high-contrast button:disabled,
+.high-contrast button.disabled {
+  background-color: #2a2a2a !important;
+  color: #888888 !important;
+  border-color: #666666 !important;
+}
+
+.high-contrast button.bg-gray-100:disabled {
+  background-color: #2a2a2a !important;
+  color: #888888 !important;
+  border-color: #666666 !important;
+}
+
+/* Alert backgrounds */
+.high-contrast .bg-red-50 {
+  background-color: #1a1a1a !important;
+  border-color: #f87171 !important;
+}
+
+.high-contrast .bg-green-50 {
+  background-color: #1a1a1a !important;
+  border-color: #34d399 !important;
+}
+
+.high-contrast .bg-yellow-50 {
+  background-color: #1a1a1a !important;
+  border-color: #fbbf24 !important;
+}
+
+/* Border colors for alerts */
+.high-contrast .border-red-200,
+.high-contrast .border-green-200,
+.high-contrast .border-yellow-200,
+.high-contrast .border-yellow-400 {
+  border-color: #ffffff !important;
+}
+
+/* Severity badge visibility */
+.high-contrast .bg-red-600,
+.high-contrast .bg-orange-500,
+.high-contrast .bg-yellow-400,
+.high-contrast .bg-gray-400 {
+  border: 1px solid #ffffff !important;
+}
+
+.high-contrast .bg-yellow-400.text-gray-800 {
+  color: #ffffff !important;
+}
+
+/* Badge text visibility - ensure all badge text is visible */
+.high-contrast span.bg-green-100,
+.high-contrast span.bg-blue-100,
+.high-contrast span.bg-red-100,
+.high-contrast span.bg-gray-100,
+.high-contrast span.bg-yellow-100,
+.high-contrast span.bg-yellow-200 {
+  color: inherit !important;
+}
+
+.high-contrast span.bg-green-100.text-green-800 {
+  color: #34d399 !important;
+}
+
+.high-contrast span.bg-blue-100.text-blue-800 {
+  color: #60a5fa !important;
+}
+
+.high-contrast span.bg-red-100.text-red-800 {
+  color: #f87171 !important;
+}
+
+.high-contrast span.bg-gray-100.text-gray-800 {
+  color: #ffffff !important;
+}
+
+.high-contrast span.bg-yellow-100.text-yellow-800,
+.high-contrast span.bg-yellow-200.text-yellow-800 {
+  color: #fbbf24 !important;
+}
+
+/* Ensure all span elements in badges are visible */
+.high-contrast .rounded-full {
+  border: 1px solid currentColor !important;
+}
+
+/* Input field value visibility - force white text */
+.high-contrast input[type="number"],
+.high-contrast input[type="text"],
+.high-contrast input[type="time"],
+.high-contrast input[type="email"] {
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* Force input values to be white even when autofilled */
+.high-contrast input:-webkit-autofill,
+.high-contrast input:-webkit-autofill:hover,
+.high-contrast input:-webkit-autofill:focus,
+.high-contrast input:-webkit-autofill:active {
+  -webkit-text-fill-color: #ffffff !important;
+  -webkit-box-shadow: 0 0 0px 1000px #2a2a2a inset !important;
+  box-shadow: 0 0 0px 1000px #2a2a2a inset !important;
+  color: #ffffff !important;
+}
+
+.high-contrast input[type="number"]::-webkit-inner-spin-button,
+.high-contrast input[type="number"]::-webkit-outer-spin-button {
+  filter: brightness(0) invert(1);
+}
+
+/* Ensure all buttons with colored backgrounds have visible text */
+.high-contrast button span {
+  color: inherit !important;
+}
+
+/* Pagination button text visibility */
+.high-contrast button.text-red-700,
+.high-contrast button.text-yellow-700,
+.high-contrast button.text-blue-700 {
+  color: inherit !important;
+}
+
+/* Ensure pagination controls are visible */
+.high-contrast .border-t {
+  border-color: #ffffff !important;
+}
+
+/* Additional button visibility fixes */
+.high-contrast button.bg-gray-200 {
+  background-color: #3a3a3a !important;
+  color: #ffffff !important;
+  border: 1px solid #ffffff !important;
+}
+
+.high-contrast button.bg-gray-200:hover {
+  background-color: #4a4a4a !important;
+}
+
+/* Ensure all interactive elements are visible */
+.high-contrast [role="button"],
+.high-contrast [role="alert"] {
+  border: 1px solid #ffffff !important;
+}
+
+/* History section visibility and modal backgrounds */
+.high-contrast .bg-gray-50 {
+  background-color: #1a1a1a !important;
+  border: 1px solid #ffffff !important;
+}
+
+.high-contrast .bg-gray-50 p,
+.high-contrast .bg-gray-50 span {
+  color: #ffffff !important;
+}
+
+.high-contrast footer.bg-gray-50 {
+  background-color: #1a1a1a !important;
+  border-color: #ffffff !important;
+}
+
+.high-contrast footer.bg-gray-50 button {
+  color: #ffffff !important;
+}
+
+/* Brand gradient button visibility */
+.high-contrast .brand-gradient {
+  background: linear-gradient(to right, #60a5fa, #3b82f6) !important;
+  color: #ffffff !important;
+}
+
+.high-contrast .brand-gradient:hover {
+  opacity: 0.9 !important;
+}
+
+/* Red alert backgrounds */
+.high-contrast .bg-red-50 {
+  background-color: #1a1a1a !important;
+  border-color: #f87171 !important;
+}
+
+.high-contrast .bg-red-50 p,
+.high-contrast .bg-red-50 span,
+.high-contrast .bg-red-50 input {
+  color: #ffffff !important;
+}
+
+.high-contrast .border-red-400 {
+  border-color: #f87171 !important;
+}
+
+/* Ensure all text in colored backgrounds is visible */
+.high-contrast .text-red-800,
+.high-contrast .text-red-700 {
+  color: #f87171 !important;
+}
+
+/* Hover states for buttons */
+.high-contrast button:hover {
+  opacity: 0.9 !important;
+}
+
+.high-contrast button.bg-red-600,
+.high-contrast button.bg-red-700 {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+  border: 1px solid #ffffff !important;
+}
+
+.high-contrast button.bg-red-600:hover,
+.high-contrast button.bg-red-700:hover {
+  background-color: #b91c1c !important;
+}
+
+/* Ensure all select options are visible */
+.high-contrast select option {
+  background-color: #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+/* Today's Medications section visibility */
+.high-contrast .bg-white.rounded-xl,
+.high-contrast .bg-white.rounded-lg {
+  background-color: #1a1a1a !important;
+  border: 1px solid #ffffff !important;
+}
+
+/* Ensure all medication cards are visible */
+.high-contrast .rounded-lg,
+.high-contrast .rounded-xl {
+  border: 1px solid #ffffff !important;
+}
+
+/* Calendar visibility */
+.high-contrast .bg-gray-50.rounded-lg {
+  background-color: #1a1a1a !important;
+  border: 1px solid #ffffff !important;
+}
+
+/* Ensure all icons are visible */
+.high-contrast svg.text-gray-500,
+.high-contrast svg.text-gray-400,
+.high-contrast svg.text-gray-300 {
+  filter: brightness(0) invert(1);
+}
+
+.high-contrast svg.text-yellow-500,
+.high-contrast svg.text-yellow-700 {
+  filter: brightness(0) saturate(100%) invert(77%) sepia(95%) saturate(1352%) hue-rotate(3deg) brightness(101%) contrast(101%);
+}
+
+.high-contrast svg.text-red-500,
+.high-contrast svg.text-red-700 {
+  filter: brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(331deg) brightness(98%) contrast(97%);
+}
+
+.high-contrast svg.text-green-500,
+.high-contrast svg.text-green-700 {
+  filter: brightness(0) saturate(100%) invert(70%) sepia(95%) saturate(434%) hue-rotate(110deg) brightness(99%) contrast(89%);
+}
+
+.high-contrast svg.text-blue-500,
+.high-contrast svg.text-blue-700 {
+  filter: brightness(0) saturate(100%) invert(60%) sepia(98%) saturate(1352%) hue-rotate(195deg) brightness(101%) contrast(101%);
+}
+
+/* Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out;
+}
+
+/* Accessibility - Larger text sizes */
+.text-base {
+  font-size: 1rem;
+}
+
+.text-lg {
+  font-size: 1.125rem;
+}
+
+.text-xl {
+  font-size: 1.25rem;
+}
+
+.text-2xl {
+  font-size: 1.5rem;
+}
+
+.text-3xl {
+  font-size: 1.875rem;
+}
+

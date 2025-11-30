@@ -36,10 +36,12 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4 animate-fade-in"
+      className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[60] p-4 animate-fade-in"
       aria-modal="true"
       role="dialog"
       onClick={handleBackdropClick}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseUp={(e) => e.stopPropagation()}
     >
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm" role="document">
         <div className="p-6">

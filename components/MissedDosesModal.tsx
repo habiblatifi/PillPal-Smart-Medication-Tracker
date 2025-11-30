@@ -6,14 +6,32 @@ interface MissedDosesModalProps {
   missedDoses: { med: Medication; date: string; time: string }[];
   onClose: () => void;
   onSaveReasons: (reasons: { [medId: string]: { [dateTimeKey: string]: string } }) => void;
+  requestConfirmation?: (props: {
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText?: string;
+    cancelText?: string;
+    actionStyle?: 'default' | 'danger';
+  }) => void;
 }
 
-const MissedDosesModal: React.FC<MissedDosesModalProps> = ({ missedDoses, onClose, onSaveReasons }) => {
+const MissedDosesModal: React.FC<MissedDosesModalProps> = ({ missedDoses, onClose, onSaveReasons, requestConfirmation }) => {
   const [reasons, setReasons] = useState<{ [key: string]: string }>({});
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
-      handleSave();
+      // Prevent closing when clicking outside - require explicit Save & Close
+      // Show a message instead
+      if (requestConfirmation) {
+        requestConfirmation({
+          title: "Save Missed Doses",
+          message: "Please click 'Save & Close' to save your missed dose reasons, or use the X button to close without saving.",
+          onConfirm: () => {},
+          confirmText: 'OK',
+          cancelText: '',
+        });
+      }
     }
   };
 
@@ -53,6 +71,13 @@ const MissedDosesModal: React.FC<MissedDosesModalProps> = ({ missedDoses, onClos
       aria-modal="true"
       role="dialog"
       onClick={handleBackdropClick}
+      onMouseDown={(e) => {
+        // Prevent backdrop click from propagating
+        const target = e.target as HTMLElement;
+        if (target.closest('[role="dialog"]') && target !== e.currentTarget) {
+          e.stopPropagation();
+        }
+      }}
     >
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
         <header className="p-5 border-b shrink-0 flex justify-between items-center bg-yellow-50">
